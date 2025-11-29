@@ -2,10 +2,10 @@
 
 version: '3.8'                                      # version of the Docker Compose file format. 3.8 is latest version for Docker Compose V1. In modern V2 version, this line is optional.
 services:                                           # The list of containers (applications) you want to run.
-  # Service1/first container
-  mongodb:                                          # Name of the service(this can be anything and is used to refer to this service in other services)
+  # Service1/first container: Database for storing
+  mongodb-service:                                  # Name of the service(this can be anything and is used to refer to this service in other services)
     image: mongo:latest                             # Image from Docker Hub
-    container_name: gallery_mongo                   # Container name
+    container_name: gallery_mongo_container         # Container name
     ports:
       - "27017:27017"                               # HOST_PORT(EXTERNAL_PORT) : CONTAINER_PORT(INTERNAL_PORT), external port can be changed but internal port is fixed by the application.
       # - "8082:27017"                                # Alternative port mapping example(this is useful if you have new version of website on a different port and want to test it before making it live on main port/say services that accept both HTTP/HTTPS connections on different ports)
@@ -16,6 +16,26 @@ services:                                           # The list of containers (ap
       MONGO_INITDB_ROOT_PASSWORD: gallery_password
     networks:                                       # Define which networks this container is part of        
       - backend-network                             # This container is present only on backend-network, so even if other networks are compromised, this container is still safe. 
+  # Service2: Web based GUI for mongodb
+  mongo-express-service:
+    image: mongo-express:latest
+    container_name: gallery_mongo_express_container
+    restart: always                                 # If this container crashes or the server reboots, Docker will restart it automatically.
+    depends_on:
+      - mongodb-service                              # This makes sure that the mongodb service is started before this service.(Note that this does not wait for the mongodb service to be "ready" before starting this service, it can start a millisecond after mongodb service starts, so if this service needs to wait for mongodb to be "ready", you need to handle that in the application logic of this service)
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: gallery_admin        # This should match the username of the MongoDB container
+      ME_CONFIG_MONGODB_ADMINPASSWORD: gallery_password     # This should match the password of the MongoDB container
+      ME_CONFIG_MONGODB_SERVER: mongodb-service             # This should match the service name of the MongoDB container
+      ME_CONFIG_BASICAUTH_USERNAME: mongo-express-admin     # This is the username for the mongo-express container
+      ME_CONFIG_BASICAUTH_PASSWORD: mongo-express-password  # This is the password for the mongo-express container
+    networks:
+      - frontend-network                           
+      - backend-network
+
+
 
 volumes:                                            # Define all the volumes here             
   mongo_storage_volume:
@@ -25,7 +45,8 @@ volumes:                                            # Define all the volumes her
 
 networks:                                          # Define all your networks here
   backend-network:                                 # <--- The colon implies "Value is null/empty", i.e create this network and since value is empty, use default settings, if no colon is present, it is considered as a string value and not a keyvalue pair in yaml.
+  frontend-network:
 
 # Usage
 # Make sure docker is up and running(open Docker Desktop in windows to start it) 
-# docker compose -f <path-to-compose-file> up -d
+# docker compose -f <path-to-compose-file> up -d (Dont put -d before up, it will throw error)

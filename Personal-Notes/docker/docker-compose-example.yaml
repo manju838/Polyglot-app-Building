@@ -1,0 +1,47 @@
+# Following https://www.youtube.com/watch?v=rr9cI4u1_88
+
+# Usage
+# docker compose -f <path-to-compose-file> up -d
+
+version: '3.8'                                      # version of the Docker Compose file format. 3.8 is latest version for Docker Compose V1. In modern V2 version, this line is optional.
+services:                                           # The list of containers (applications) you want to run.
+  # Service1/first container
+  mongodb:                                          # Name of the service(this can be anything and is used to refer to this service in other services)
+    image: mongo:latest                             # Image from Docker Hub
+    container_name: my_mongo_container              # Container name
+    ports:
+      - "27017:27017"                               # HOST_PORT(EXTERNAL_PORT) : CONTAINER_PORT(INTERNAL_PORT), external port can be changed but internal port is fixed by the application.
+      - "8082:27017"                                # Alternative port mapping example(this is useful if you have new version of website on a different port and want to test it before making it live on main port/say services that accept both HTTP/HTTPS connections on different ports)
+    volumes:
+      - mongo_storage_volume:/data/db               # Maps mongo_storage_volume to mongodb container's /data/db directory(where MongoDB stores its data). This makes the data persistent even if the container is removed. For some services, we can map second_storage_volume to a different path for say capturing logs. 
+    environment:                                    # Environment variables unique to this container
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    networks:                                       # Define which networks this container is part of        
+      - backend-network                             # This container is present only on backend-network, so even if other networks are compromised, this container is still safe. 
+  # Service2/second container
+  mongo-express:
+    image: mongo-express:latest
+    container_name: my_mongo_express_container
+    restart: always                                 # If this container crashes or the server reboots, Docker will restart it automatically.
+    depends_on:
+      - mongodb                                     # This makes sure that the mongodb service is started before this service.(Note that this does not wait for the mongodb service to be "ready" before starting this service, it can start a millisecond after mongodb service starts, so if this service needs to wait for mongodb to be "ready", you need to handle that in the application logic of this service)
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin        # This should match the username of the MongoDB container
+      ME_CONFIG_MONGODB_ADMINPASSWORD: password     # This should match the password of the MongoDB container
+      ME_CONFIG_MONGODB_SERVER: mongodb             # This should match the service name of the MongoDB container
+    networks:
+      - frontend-network                           
+      - backend-network
+
+volumes:                                            # Define all the volumes here             
+  mongo_storage_volume:
+    driver: local                                   # Use local storage, i.e HDD/SSD of machine running Docker
+  second_storage_volume:
+    driver: local
+
+networks:                                          # Define all your networks here
+  frontend-network:                                # <--- The colon implies "Value is null/empty", i.e create this network and since value is empty, use default settings, if no colon is present, it is considered as a string value and not a keyvalue pair in yaml.
+  backend-network: 
